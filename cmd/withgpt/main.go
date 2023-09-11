@@ -45,11 +45,6 @@ func main() {
 
 }
 
-const (
-	//PROMPT1 = "I am going to provide you with a list of categories, and then a message.  I want you to reply with what category the message best fits within.  Please keep your responses terse.  Reply with the most likely category from my list and how closely it fits from either `high` `medium` or `low`\nThe categories are: \n"
-	PROMPT2 = "I am going to provide you with a list of categories, and then a message.  I want you to reply with what category the message best fits within.  Please keep your responses terse.  Reply with the most likely categories from my list and how closely they fit from either `high` `medium` or `low`\nThe categories are: \n"
-)
-
 func CheckTweet(apiKey, tweet string, log *logrus.Logger) (topic string, err error) {
 
 	resp, err := AskGPT(apiKey, tweet, log)
@@ -66,7 +61,8 @@ func CheckTweet(apiKey, tweet string, log *logrus.Logger) (topic string, err err
 	log.WithField("fit", fit).Info("fit")
 	log.WithField("topic", topic).Info("topic")
 
-	if fit == "high" || fit == "medium" {
+	// only proceed with high fits
+	if fit == "high" {
 		return topic, nil
 	}
 	return "", errors.New("fit was too low")
@@ -80,11 +76,6 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 	content := "for each message, categorise the topic of the message from the following list of options:\n" +
 		strings.Join(policies, "\n") +
 		`\n\n  and how closely they fit from either "high" "medium" or "low" provide the following fields in a JSON dict, where applicable: topic, fit`
-
-	// content := PROMPT2 +
-	// 	strings.Join(policies, "\n") +
-	// 	"\n\nThe Message is:" +
-	// 	tweet
 
 	messages := []gpt.Message{
 		{
@@ -101,7 +92,6 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 	if err != nil {
 		log.WithError(err).Fatal("request failed")
 	}
-	//fmt.Printf("\n%+v\n\n", resp)
 
 	for _, c := range resp.Choices {
 		log.WithField("message", c.Message.Content).WithField("role", c.Message.Role).WithField("index", c.Index).Info("result")
@@ -127,7 +117,7 @@ func parseResponseMessage(msg string) (fit, topic string, err error) {
 	topicJ := topicJSON{}
 	err = json.Unmarshal([]byte(msg), &topicJ)
 	if err == nil {
-		return topicJ.Fit, topicJ.Topic, nil
+		return strings.ToLower(topicJ.Fit), topicJ.Topic, nil
 	}
 
 	// sometimes it also appears like:
