@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,10 +18,16 @@ import (
 func main() {
 
 	// hardcoded example tweet at the moment..
-	tweet := `It's been a fantastic evening meeting local residents in the constituency that's been my home for nearly 15 yrs
-
-	I am campaigning to protect our green belt from being concreted over through top-down housing targets.  I am on the side of local residents. 👇🏾
-	https://shorturl.at/bBGO7`
+	tweet := `Great 
+	@Conservatives
+	 progress on electric vehicle charge points.
+	
+	People won’t make the switch to electric if they can’t find a charge point.
+	
+	This is very good progress! 
+	
+	My constituency hosts Britain’s first petrol station converted to EV charging, on Fulham Road, SW6.
+	`
 
 	log := logrus.New()
 	apiKey := os.Getenv("APIKEY")
@@ -41,19 +50,50 @@ const (
 	PROMPT2 = "I am going to provide you with a list of categories, and then a message.  I want you to reply with what category the message best fits within.  Please keep your responses terse.  Reply with the most likely categories from my list and how closely they fit from either `high` `medium` or `low`\nThe categories are: \n"
 )
 
-func CheckTweet(apiKey, tweet string, log *logrus.Logger) (string, error) {
+func CheckTweet(apiKey, tweet string, log *logrus.Logger) (topic string, err error) {
+
+	resp, err := AskGPT(apiKey, tweet, log)
+	if err != nil {
+		return "", err
+	}
+	log.Info(resp)
+
+	fit := ""
+	fit, topic, err = parseResponseMessage(resp)
+	if err != nil {
+		return "", err
+	}
+	log.WithField("fit", fit).Info("fit")
+	log.WithField("topic", topic).Info("topic")
+
+	if fit == "high" || fit == "medium" {
+		return topic, nil
+	}
+	return "", errors.New("fit was too low")
+}
+
+func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	policies := publicwhip.GetAllPolicies()
-	content := PROMPT2 +
+
+	content := "for each message, categorise the topic of the message from the following list of options:\n" +
 		strings.Join(policies, "\n") +
-		"\n\nThe Message is:" +
-		tweet
+		`\n\n  and how closely they fit from either "high" "medium" or "low" provide the following fields in a JSON dict, where applicable: topic, fit`
+
+	// content := PROMPT2 +
+	// 	strings.Join(policies, "\n") +
+	// 	"\n\nThe Message is:" +
+	// 	tweet
 
 	messages := []gpt.Message{
 		{
-			Role:    "user",
+			Role:    "system",
 			Content: content,
+		},
+		{
+			Role:    "user",
+			Content: tweet,
 		},
 	}
 
@@ -61,7 +101,7 @@ func CheckTweet(apiKey, tweet string, log *logrus.Logger) (string, error) {
 	if err != nil {
 		log.WithError(err).Fatal("request failed")
 	}
-	fmt.Printf("\n%+v\n\n", resp)
+	//fmt.Printf("\n%+v\n\n", resp)
 
 	for _, c := range resp.Choices {
 		log.WithField("message", c.Message.Content).WithField("role", c.Message.Role).WithField("index", c.Index).Info("result")
@@ -69,4 +109,50 @@ func CheckTweet(apiKey, tweet string, log *logrus.Logger) (string, error) {
 
 	return resp.Choices[len(resp.Choices)-1].Message.Content, err
 
+}
+
+type topicJSON struct {
+	Topic string `json:"topic"`
+	Fit   string `json:"fit"`
+}
+
+func parseResponseMessage(msg string) (fit, topic string, err error) {
+
+	//try to parse it like this format:
+	// {
+	// 	"topic": "Incentivise Low Carbon Electricity Generation",
+	// 	"fit": "high"
+	// }
+
+	topicJ := topicJSON{}
+	err = json.Unmarshal([]byte(msg), &topicJ)
+	if err == nil {
+		return topicJ.Fit, topicJ.Topic, nil
+	}
+
+	// sometimes it also appears like:
+	// topic: Incentivise Low Carbon Electricity Generation
+	// fit: high
+
+	// so try that too
+	err = nil // reset error to nil
+	topicRE := regexp.MustCompile(`topic:\W*(.+)\n`)
+	fitRE := regexp.MustCompile(`fit:\W*(.+)\n`)
+	msg = fmt.Sprintf("%v\n", msg) // needs to have at least 1 new line char at the end
+
+	tMatch := topicRE.FindStringSubmatch(msg)
+	if len(tMatch) == 2 {
+		topic = tMatch[1]
+	} else {
+		return "", "", errors.New("cant find topic")
+	}
+
+	fMatch := fitRE.FindStringSubmatch(msg)
+	if len(fMatch) == 2 {
+		fit = fMatch[1]
+	} else {
+		return "", "", errors.New("cant find fit")
+	}
+
+	return strings.ToLower(strings.TrimSpace(fit)), strings.TrimSpace(topic), err
 }
