@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	AllMPs   map[string]string
+	AllMPs   map[string]string // name : id
 	Policies map[string]string // name : id
 )
 
@@ -46,6 +46,14 @@ func loadMPs() {
 			panic(err)
 		}
 		fmt.Println("loaded MPs file")
+		count := 0
+		for name := range AllMPs {
+			fmt.Printf("MP: %v\n", name)
+			count++
+			if count > 10 {
+				break
+			}
+		}
 		return
 	}
 	// else calculate the data and create the file
@@ -106,7 +114,7 @@ func downloadMPData() {
 				//then we need to load that URL and get the mpID from it
 				id, err := getIDfromMPURL(e.Attr("href"))
 				if err == nil {
-					name := e.Text
+					name := strings.ToLower(strings.TrimSpace(e.Text))
 					AllMPs[name] = id
 					fmt.Printf("%v,%v\n", name, id)
 				}

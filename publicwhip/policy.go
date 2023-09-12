@@ -8,6 +8,21 @@ import (
 	"github.com/gocolly/colly"
 )
 
+// converts the names to IDs then calls GetMPPolicyPosition
+func GetVoteHistory(mpName, policyName string) (history string, err error) {
+	mpName = strings.ToLower(strings.TrimSpace(mpName))
+	mpID, ok := AllMPs[mpName]
+	if !ok {
+		return "", errors.New("could not find mp in list")
+	}
+
+	policyID, ok := Policies[policyName]
+	if !ok {
+		return "", errors.New("could not find policy in list")
+	}
+	return GetMPPolicyPosition(mpID, policyID)
+}
+
 func GetMPPolicyPosition(mpID, policyID string) (string, error) {
 	c := colly.NewCollector()
 
@@ -51,6 +66,12 @@ func loadAllPolicies(mpID string) map[string]string {
 	return policies
 }
 
-func GetMPID(name string) {
+func GetMPID(name string) (string, bool) {
 
+	return "", false
+}
+
+func GetPolicyID(name string) (string, bool) {
+
+	return "", false
 }
