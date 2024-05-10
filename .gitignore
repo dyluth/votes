@@ -2,4 +2,5 @@ tmp*
 *key
 #*Data
 .vscode
+*.tmp
 *.json
