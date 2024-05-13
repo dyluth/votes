@@ -34,6 +34,29 @@ func GetAllPolicies() []string {
 	return p
 }
 
+func GetReducedPolicies() []string {
+	fmt.Println("WARNING: Using GetReducedPolicies - hardcoded list by Cam")
+	return []string{
+		"Bankers' Bonus Tax",
+		"Higher Pay for Public Sector Workers",
+		"HS2 - In Favour",
+		"Incentivise Low Carbon Electricity Generation",
+		"Minimum Wage",
+		"Right to strike",
+		"Public Ownership of Railways",
+		"Require voters to show photo ID before voting",
+		"Termination of pregnancy - against",
+		"More Emergency Service Workers",
+		"Right for EU Citizens in the UK to Stay",
+		"Higher taxes on banks",
+		"Stop climate change",
+		"Prevent abuse of zero hours contracts",
+		"Tougher on illegal immigration",
+		"Homosexuality - Equal rights",
+		"None",
+	}
+}
+
 func loadMPs() {
 	// try to read the file, if its there, use that
 	dat, err := os.ReadFile("./mpData")
@@ -45,7 +68,7 @@ func loadMPs() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("loaded MPs file")
+		fmt.Println("loaded MPs file.. first 10:")
 		count := 0
 		for name := range AllMPs {
 			fmt.Printf("MP: %v\n", name)

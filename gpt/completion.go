@@ -9,8 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/dyluth/votes/publicwhip"
@@ -18,15 +16,18 @@ import (
 )
 
 type Payload struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
+	Model          string     `json:"model"`
+	Messages       []Message  `json:"messages"`
+	Functions      []Function `json:"functions,omitempty"`
+	FunctionToCall string     `json:"function_call,omitempty"`
 }
+
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type Response struct {
+type OpenAPIResponse struct {
 	ID      string   `json:"id"`
 	Object  string   `json:"object"`
 	Created int      `json:"created"`
@@ -56,15 +57,32 @@ type Usage struct {
 // content_filter: Omitted content due to a flag from our content filters
 // null: API response still in progress or incomplete
 type Choice struct {
+	Index        int             `json:"index"`
 	Message      ResponseMessage `json:"message"`
 	FinishReason string          `json:"finish_reason"`
-	Index        int             `json:"index"`
 }
 
 type ResponseMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role         string       `json:"role"`
+	Content      string       `json:"content"`
+	FunctionCall FunctionCall `json:"function_call"`
 }
+type FunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+// hopefully that maps to the above
+// {
+// 	"role": "assistant",
+// 	"content": null,
+// 	"function_call": {
+// 	  "name": "classify",
+// 	  "arguments": "{\
+// \\"prediction\\": \\"Incentivise Low Carbon Electricity Generation\\"\
+// }"
+// 	}
+//   },
 
 // eg as curl from the example:
 //
@@ -75,24 +93,56 @@ type ResponseMessage struct {
 //	 "model": "gpt-3.5-turbo",
 //	 "messages": [{"role": "user", "content": "What is the OpenAI mission?"}]
 //	 }'
-func OpenAIRequest(ctx context.Context, apikey string, messages []Message, log *logrus.Logger) (Response, error) {
+func OpenAIRequest(ctx context.Context, apikey string, messages []Message, functions []Function, log *logrus.Logger) (OpenAPIResponse, error) {
 	data := Payload{
-		Model:    "gpt-3.5-turbo",
-		Messages: messages,
+		Model:     "gpt-4",
+		Messages:  messages,
+		Functions: functions,
 	}
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
-		return Response{}, err
+		return OpenAPIResponse{}, err
 	}
 	body := bytes.NewReader(payloadBytes)
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", body)
 	if err != nil {
-		return Response{}, err
+		return OpenAPIResponse{}, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", apikey))
 	req.Header.Set("Content-Type", "application/json")
 
+	b, err := makeAPICall(req)
+	if err != nil {
+		return OpenAPIResponse{}, err
+	}
+	// now strip out all the rubbish from open APIs attempt at json:
+	// jsonToSanitise := string(b)
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\\n`, "")
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\n`, "")
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\"{`, `{`)
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `}\"`, `}`)
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\\\"`, `"`)
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\\"`, `"`)
+	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\"`, `"`)
+
+	var r OpenAPIResponse
+
+	err = json.Unmarshal(b, &r)
+	if err != nil {
+		return OpenAPIResponse{}, err
+	}
+	log.WithField("body", string(b)).Info("completion response body")
+	fmt.Printf("completion parsed body Object: \n%+v\n\n", r)
+	if r.Error != nil {
+		return r, fmt.Errorf(r.Error.Message)
+	}
+	return r, nil
+}
+
+var makeAPICall = makeAPICallInternal
+
+func makeAPICallInternal(req *http.Request) ([]byte, error) {
 	client := &http.Client{
 		Timeout: 20 * time.Second,
 		Transport: &http.Transport{
@@ -104,22 +154,11 @@ func OpenAIRequest(ctx context.Context, apikey string, messages []Message, log *
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return Response{}, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Response{}, err
-	}
-
-	var r Response
-	json.Unmarshal(b, &r)
-	log.WithField("body", string(b)).Info("comptetion response body")
-	if r.Error != nil {
-		return r, fmt.Errorf(r.Error.Message)
-	}
-	return r, nil
+	return io.ReadAll(resp.Body)
 }
 
 func GetTopicOfMessage(apiKey, tweet string, log *logrus.Logger) (topic string, err error) {
@@ -130,29 +169,40 @@ func GetTopicOfMessage(apiKey, tweet string, log *logrus.Logger) (topic string, 
 	}
 	log.Info(resp)
 
-	fit := ""
-	fit, topic, err = parseResponseMessage(resp)
+	topic, err = parseResponseMessage(resp)
 	if err != nil {
 		return "", err
 	}
-	log.WithField("fit", fit).Info("fit")
-	log.WithField("topic", topic).Info("topic")
-
-	// only proceed with high fits
-	if fit == "high" {
-		return topic, nil
-	}
-	return "", errors.New("fit was too low")
+	return topic, nil
 }
 
 func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
+	//populate as per: https://medium.com/discovery-at-nesta/how-to-use-gpt-4-and-openais-functions-for-text-classification-ad0957be9b25
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	policies := publicwhip.GetAllPolicies()
+	policies := publicwhip.GetReducedPolicies() //GetAllPolicies()
+	//fmt.Println("TWEET: " + tweet)
+	//fmt.Println(strings.Join(policies, "\n"))
+	content := "predict the topic of the message"
 
-	content := "for each message, categorise the topic of the message from the following list of options:\n" +
-		strings.Join(policies, "\n") +
-		`\n\n  and how closely they fit from either "high" "medium" or "low" provide the following fields in a JSON dict, where applicable: topic, fit`
+	function := Function{
+		Name:        "classify",
+		Description: "Predict the topic of the given text",
+		Parameters: FunctionParams{
+			Type: "object",
+			Properties: map[string]FunctionPrediction{
+				"prediction": {
+					Type: "array",
+					Items: FunctionItems{
+						Type: "string",
+						Enum: policies,
+					},
+					Description: "the topics",
+				},
+			},
+			Required: []string{"prediction"},
+		},
+	}
 
 	messages := []Message{
 		{
@@ -165,61 +215,34 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 		},
 	}
 
-	resp, err := OpenAIRequest(ctx, apiKey, messages, log)
+	resp, err := OpenAIRequest(ctx, apiKey, messages, []Function{function}, log)
 	if err != nil {
 		log.WithError(err).Fatal("request failed")
 	}
 
+	//fmt.Printf("\nreturned info: %+v\n\n", resp)
+
+	result := ""
+
 	for _, c := range resp.Choices {
-		log.WithField("message", c.Message.Content).WithField("role", c.Message.Role).WithField("index", c.Index).Info("result")
+		result = c.Message.FunctionCall.Arguments
+		log.WithField("message", c.Message.Content).WithField("role", c.Message.Role).WithField("index", c.Index).WithField("Arguments", c.Message.FunctionCall.Arguments).WithField("Prediction", result).Info("result")
+
+		return result, nil
 	}
-
-	return resp.Choices[len(resp.Choices)-1].Message.Content, err
-
+	return "", errors.New("nothing found")
 }
 
-type topicJSON struct {
-	Topic string `json:"topic"`
-	Fit   string `json:"fit"`
-}
+func parseResponseMessage(msg string) (topic string, err error) {
 
-func parseResponseMessage(msg string) (fit, topic string, err error) {
-
-	//try to parse it like this format:
-	// {
-	// 	"topic": "Incentivise Low Carbon Electricity Generation",
-	// 	"fit": "high"
-	// }
-
-	topicJ := topicJSON{}
-	err = json.Unmarshal([]byte(msg), &topicJ)
-	if err == nil {
-		return strings.ToLower(topicJ.Fit), topicJ.Topic, nil
+	result := make(map[string]string)
+	err = json.Unmarshal([]byte(msg), &result)
+	if err != nil {
+		return "", err
 	}
-
-	// sometimes it also appears like:
-	// topic: Incentivise Low Carbon Electricity Generation
-	// fit: high
-
-	// so try that too
-	err = nil // reset error to nil
-	topicRE := regexp.MustCompile(`topic:\W*(.+)\n`)
-	fitRE := regexp.MustCompile(`fit:\W*(.+)\n`)
-	msg = fmt.Sprintf("%v\n", msg) // needs to have at least 1 new line char at the end
-
-	tMatch := topicRE.FindStringSubmatch(msg)
-	if len(tMatch) == 2 {
-		topic = tMatch[1]
-	} else {
-		return "", "", fmt.Errorf("cant find topic: '%v'", topic)
+	prediction, ok := result["prediction"]
+	if ok {
+		return prediction, nil
 	}
-
-	fMatch := fitRE.FindStringSubmatch(msg)
-	if len(fMatch) == 2 {
-		fit = fMatch[1]
-	} else {
-		return "", "", errors.New("cant find fit")
-	}
-
-	return strings.ToLower(strings.TrimSpace(fit)), strings.TrimSpace(topic), err
+	return "", errors.New("prediciton not found")
 }

@@ -10,7 +10,7 @@ this go project is designed to:
 # running the project
 
 `go run cmd/withgpt/main.go` will give you an idea of how it's supposed to work.
-* the real version will need to run a microservice with an API that takes a tweet / post and returns the appropriate voting history message or an error
+`go run cmd/service/main.go` runs as a service that hosts an endpoint you can send requests to (see its readme)
 
 # different parts of the project
 ## data from PublicWhip
@@ -23,6 +23,4 @@ however - getting a list of MPs along with their internal ID number takes time (
 there is code that can talk to the official parliament api, but so far we have not needed this
 
 ## gpt
-this is the package that talks to chatGPT and uses it to classify mesages using the policies from publicwhip - it was built quickly and could certainly do with some love
-- also the prompt is probably suboptimal, but seems to work well enough for the moment.
-
+this is the package that talks to chatGPT and uses it to classify mesages using the policies from publicwhip

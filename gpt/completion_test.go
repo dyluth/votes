@@ -1,61 +1,33 @@
 package gpt
 
-import "testing"
+import (
+	"net/http"
+	"testing"
 
-func Test_parseResponseMessage(t *testing.T) {
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+)
 
-	tests := []struct {
-		name      string
-		msg       string
-		wantFit   string
-		wantTopic string
-		wantErr   bool
-	}{
-		{
-			name:      "2 lines good",
-			msg:       "topic: Incentivise Low Carbon Electricity Generation\nfit: high",
-			wantFit:   "high",
-			wantTopic: "Incentivise Low Carbon Electricity Generation",
-		},
-		{
-			name:      "2 lines low fit",
-			msg:       "topic: Incentivise Low Carbon Electricity Generation\nfit: low",
-			wantFit:   "low",
-			wantTopic: "Incentivise Low Carbon Electricity Generation",
-		},
-		{
-			name:      "2 lines medium fit",
-			msg:       "topic: Incentivise Low Carbon Electricity Generation\nfit: medium",
-			wantFit:   "medium",
-			wantTopic: "Incentivise Low Carbon Electricity Generation",
-		},
-		{
-			name:      "JSON good",
-			msg:       `{"topic": "Encourage and incentivise saving","fit": "high"}`,
-			wantFit:   "high",
-			wantTopic: "Encourage and incentivise saving",
-		},
-		{
-			name:      "bad",
-			msg:       `gibberishsad,masdm`,
-			wantFit:   "",
-			wantTopic: "",
-			wantErr:   true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotFit, gotTopic, err := parseResponseMessage(tt.msg)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseResponseMessage() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if gotFit != tt.wantFit {
-				t.Errorf("parseResponseMessage() gotFit = %v, want %v", gotFit, tt.wantFit)
-			}
-			if gotTopic != tt.wantTopic {
-				t.Errorf("parseResponseMessage() gotTopic = %v, want %v", gotTopic, tt.wantTopic)
-			}
-		})
-	}
+func makeAPICallDummy(req *http.Request) ([]byte, error) {
+	body := "{\n  \"id\": \"chatcmpl-9OMePTENm35zHRn73ReFGUs2Yqwtk\",\n  \"object\": \"chat.completion\",\n  \"created\": 1715593969,\n  \"model\": \"gpt-4-0613\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": null,\n        \"function_call\": {\n          \"name\": \"classify\",\n          \"arguments\": \"{\\n  \\\"prediction\\\": \\\"Incentivise Low Carbon Electricity Generation\\\"\\n}\"\n        }\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"function_call\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 260,\n    \"completion_tokens\": 22,\n    \"total_tokens\": 282\n  },\n  \"system_fingerprint\": null\n}\n"
+
+	return []byte(body), nil
+}
+
+func TestGetTopicOfMessage(t *testing.T) {
+
+	tweet := `Great 
+	@Conservatives
+	 progress on electric vehicle charge points.
+	
+	People won’t make the switch to electric if they can’t find a charge point.
+	
+	This is very good progress! 
+	
+	My constituency hosts Britain’s first petrol station converted to EV charging, on Fulham Road, SW6.`
+
+	makeAPICall = makeAPICallDummy
+	got, err := GetTopicOfMessage("FAKE-KEY", tweet, logrus.New())
+	require.NoError(t, err)
+	require.Equal(t, "Incentivise Low Carbon Electricity Generation", got)
 }
