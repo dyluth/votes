@@ -17,6 +17,8 @@ var (
 	log    *logrus.Logger
 )
 
+// run as a service that can be called
+// eg
 // curl localhost:4000/votes -H "Content-Type: application/json" --data '{"Message":"hey we really need to tax bankers more!", "mp": "Dominic Raab"}'
 func main() {
 

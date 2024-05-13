@@ -19,7 +19,7 @@ func main() {
 	}
 
 	if len(goodMembers) != 1 {
-		panic(fmt.Sprint("we did not find exaclty 1 MP %v", len(goodMembers)))
+		panic(fmt.Sprintf("we did not find exaclty 1 MP %v", len(goodMembers)))
 	}
 
 	mp := goodMembers[0]
