@@ -72,18 +72,6 @@ type FunctionCall struct {
 	Arguments string `json:"arguments"`
 }
 
-// hopefully that maps to the above
-// {
-// 	"role": "assistant",
-// 	"content": null,
-// 	"function_call": {
-// 	  "name": "classify",
-// 	  "arguments": "{\
-// \\"prediction\\": \\"Incentivise Low Carbon Electricity Generation\\"\
-// }"
-// 	}
-//   },
-
 // eg as curl from the example:
 //
 //	curl https://api.openai.com/v1/chat/completions \
@@ -116,18 +104,8 @@ func OpenAIRequest(ctx context.Context, apikey string, messages []Message, funct
 	if err != nil {
 		return OpenAPIResponse{}, err
 	}
-	// now strip out all the rubbish from open APIs attempt at json:
-	// jsonToSanitise := string(b)
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\\n`, "")
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\n`, "")
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\"{`, `{`)
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `}\"`, `}`)
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\\\"`, `"`)
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\\"`, `"`)
-	// jsonToSanitise = strings.ReplaceAll(jsonToSanitise, `\"`, `"`)
 
 	var r OpenAPIResponse
-
 	err = json.Unmarshal(b, &r)
 	if err != nil {
 		return OpenAPIResponse{}, err
@@ -180,9 +158,8 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 	//populate as per: https://medium.com/discovery-at-nesta/how-to-use-gpt-4-and-openais-functions-for-text-classification-ad0957be9b25
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	// we are using GetReducedPolicies to reduce our GPT prompt size (and cost!) - just using a subset of interesting policies
 	policies := publicwhip.GetReducedPolicies() //GetAllPolicies()
-	//fmt.Println("TWEET: " + tweet)
-	//fmt.Println(strings.Join(policies, "\n"))
 	content := "predict the topic of the message"
 
 	function := Function{
@@ -219,8 +196,6 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 	if err != nil {
 		log.WithError(err).Fatal("request failed")
 	}
-
-	//fmt.Printf("\nreturned info: %+v\n\n", resp)
 
 	result := ""
 

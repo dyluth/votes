@@ -24,3 +24,4 @@ there is code that can talk to the official parliament api, but so far we have n
 
 ## gpt
 this is the package that talks to chatGPT and uses it to classify mesages using the policies from publicwhip
+NOTE: we are using GetReducedPolicies to reduce our GPT prompt size (and cost!) - just using a hardcoded subset of interesting policies rather than all of them - this can be modified in the `got/completion.go` code 
