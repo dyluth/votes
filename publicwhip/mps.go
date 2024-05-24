@@ -60,6 +60,9 @@ func GetReducedPolicies() []string {
 func loadMPs() {
 	// try to read the file, if its there, use that
 	dat, err := os.ReadFile("./mpData")
+	if err != nil { // use hardcoded local path for easier testing
+		dat, err = os.ReadFile("/Users/cam/go/src/github.com/dyluth/votes/classifier/publicwhip/mpData")
+	}
 	if err == nil {
 		buff := bytes.NewBuffer(dat)
 		d := gob.NewDecoder(buff)
@@ -70,8 +73,8 @@ func loadMPs() {
 		}
 		fmt.Println("loaded MPs file.. first 10:")
 		count := 0
-		for name := range AllMPs {
-			fmt.Printf("MP: %v\n", name)
+		for name, ID := range AllMPs {
+			fmt.Printf("MP: %v - %v\n", name, ID)
 			count++
 			if count > 10 {
 				break

@@ -18,7 +18,7 @@ func GetVoteHistory(mpName, policyName string) (history string, err error) {
 
 	policyID, ok := Policies[policyName]
 	if !ok {
-		return "", errors.New("could not find policy in list")
+		return "", errors.New("could not find policy in list: " + policyName)
 	}
 	return GetMPPolicyPosition(mpID, policyID)
 }
@@ -39,7 +39,7 @@ func GetMPPolicyPosition(mpID, policyID string) (string, error) {
 	c.Visit(u)
 
 	if voteSummary == "" {
-		return "", errors.New("could not find summary")
+		return "", errors.New("could not find summary " + u)
 	}
 	return voteSummary, nil
 }
