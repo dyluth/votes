@@ -23,9 +23,10 @@ func main() {
 	// `
 	// topic, err := calculateTopic(tweet)
 	// if err != nil {
-	// 		panic(err)
+	// 	panic(err)
 	// }
 	mpName := "jon ashworth"
+
 	topic := "Incentivise Low Carbon Electricity Generation" // hardcoded for testing
 
 	position, err := getVotingHistory(topic, mpName)

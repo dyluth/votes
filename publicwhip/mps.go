@@ -3,6 +3,7 @@ package publicwhip
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -20,10 +21,35 @@ var (
 
 func SetupMPs() {
 	loadMPs()
+
 	for _, v := range AllMPs {
-		Policies = loadAllPolicies(v) // not cached locally
+		err := loadAllPoliciesFromCache(v)
+		if err != nil {
+			Policies = loadAllPolicies(v)
+			err := saveAllPoliciesToCache()
+			if err != nil {
+				fmt.Printf("WARNING: failed to save cache of all Policies: %v\n", err)
+			}
+		}
+		fmt.Printf("loaded policies from cache\n")
 		break
 	}
+}
+func saveAllPoliciesToCache() error {
+	file, _ := os.OpenFile("./allPoliciesCache.json", os.O_CREATE+os.O_WRONLY, os.ModePerm)
+	defer file.Close()
+	encoder := json.NewEncoder(file)
+	return encoder.Encode(Policies)
+}
+
+func loadAllPoliciesFromCache(MPID string) error {
+	// try to load from cache
+	b, err := os.ReadFile("allPoliciesCache.json")
+	if err != nil {
+		return err
+	}
+	// decode straight into Policies
+	return json.NewDecoder(bytes.NewBuffer(b)).Decode(&Policies)
 }
 
 func GetAllPolicies() []string {
@@ -42,6 +68,7 @@ func GetReducedPolicies() []string {
 		"HS2 - In Favour",
 		"Incentivise Low Carbon Electricity Generation",
 		"Minimum Wage",
+		"Voting age - Reduce to 16",
 		"Right to strike",
 		"Public Ownership of Railways",
 		"Require voters to show photo ID before voting",

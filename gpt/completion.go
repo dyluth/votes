@@ -83,7 +83,7 @@ type FunctionCall struct {
 //	 }'
 func OpenAIRequest(ctx context.Context, apikey string, messages []Message, functions []Function, log *logrus.Logger) (OpenAPIResponse, error) {
 	data := Payload{
-		Model:     "GPT-4o",
+		Model:     "gpt-4o",
 		Messages:  messages,
 		Functions: functions,
 	}
@@ -213,7 +213,21 @@ func parseResponseMessage(msg string) (topic string, err error) {
 	result := make(map[string]string)
 	err = json.Unmarshal([]byte(msg), &result)
 	if err != nil {
-		return "", err
+
+		result := make(map[string][]string)
+		err = json.Unmarshal([]byte(msg), &result)
+		if err != nil {
+			return "", err
+		}
+		prediction, ok := result["prediction"]
+		if ok {
+			if len(prediction) > 0 {
+
+				return prediction[0], nil
+			}
+			return "", errors.New("prediction returned, but empty")
+		}
+
 	}
 	prediction, ok := result["prediction"]
 	if ok {
