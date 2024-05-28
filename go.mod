@@ -3,10 +3,11 @@ module github.com/dyluth/votes
 go 1.20
 
 require (
+	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/gocolly/colly v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
@@ -16,7 +17,6 @@ require (
 	github.com/antchfx/xmlquery v1.3.17 // indirect
 	github.com/antchfx/xpath v1.2.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/g8rswimmer/go-twitter/v2 v2.1.5 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.3.1 // indirect
@@ -28,5 +28,5 @@ require (
 	golang.org/x/sys v0.11.0 // indirect
 	golang.org/x/text v0.12.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

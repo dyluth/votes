@@ -93,6 +93,4 @@ func GetMPMessages(mpTwitterID string) (map[string]*twitter.TweetDictionary, err
 	return tweetResponse.Raw.TweetDictionaries(), nil
 }
 
-//function to reply to a specific message (returned by above function)
-
 //TODO handle DMs to us
