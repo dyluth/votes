@@ -28,7 +28,7 @@ func main() {
 		log.Fatal("env var APIKEY not set")
 	}
 
-	publicwhip.SetupMPs()
+	publicwhip.SetupMPs(log)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/votes", GetRelevantVoteHandler)

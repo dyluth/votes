@@ -9,27 +9,25 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	twitter "github.com/g8rswimmer/go-twitter/v2"
 )
 
 var (
-	idToName map[string]string
-	client   *twitter.Client
-)
-
-const (
-	idToNameFilename = "./mpTwitterIDsToName.json"
+	TwitterIdToName  map[string]string
+	client           *twitter.Client
+	IdToNameFilename = "./mpTwitterIDsToName.json"
 )
 
 func Setup() error {
 	// try to load from cache
-	b, err := os.ReadFile(idToNameFilename)
+	b, err := os.ReadFile(IdToNameFilename)
 	if err != nil {
 		return err
 	}
 	// decode straight into idToName
-	err = json.NewDecoder(bytes.NewBuffer(b)).Decode(&idToName)
+	err = json.NewDecoder(bytes.NewBuffer(b)).Decode(&TwitterIdToName)
 	if err != nil {
 		return err
 	}
@@ -58,7 +56,7 @@ func (a authorize) Add(req *http.Request) {
 }
 
 // function to get messages for an MP in the last X time
-func GetMPMessages(mpTwitterID string) (map[string]*twitter.TweetDictionary, error) {
+func GetMPMessages(mpTwitterID string, since time.Time) (map[string]*twitter.TweetDictionary, error) {
 
 	if os.Getenv("TESTING") != "" {
 		fmt.Println("USING EXAMPLE TWEETS")
@@ -76,14 +74,11 @@ func GetMPMessages(mpTwitterID string) (map[string]*twitter.TweetDictionary, err
 
 	opts := twitter.TweetRecentSearchOpts{
 		TweetFields: []twitter.TweetField{twitter.TweetFieldConversationID, twitter.TweetFieldText},
-		//StartTime:   time.Now().Add(-1 * time.Hour),
-		//MaxResults: 1,
+		StartTime:   time.Now().Add(-1 * time.Since(since)),
 	}
 
 	mpTwitterID = strings.TrimPrefix(mpTwitterID, "@") // need to remove any @ from userids
 	query := fmt.Sprintf("from:%v -is:retweet", mpTwitterID)
-
-	fmt.Println("Callout to tweet recent search callout")
 
 	tweetResponse, err := client.TweetRecentSearch(context.Background(), query, opts)
 	if err != nil {

@@ -3,6 +3,7 @@ package publicwhip
 import (
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +28,7 @@ func TestGetAllPolicies(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	t.Skip("skipping TestInit as it fetches a full list of MPs which times out...")
-	SetupMPs()
+	SetupMPs(logrus.New())
 	require.Equal(t, len(AllMPs), 20)
 
 }

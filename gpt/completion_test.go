@@ -31,3 +31,15 @@ func TestGetTopicOfMessage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Incentivise Low Carbon Electricity Generation", got)
 }
+
+func Test_parseResponseMessage(t *testing.T) {
+
+	gotTopic, err := parseResponseMessage("The topic of the message is likely \"More Emergency Service Workers\".")
+	require.NoError(t, err)
+	require.Equal(t, "More Emergency Service Workers", gotTopic)
+
+	gotTopic, err = parseResponseMessage("The likely topic of this message is:\n\n- \"Make it easier to trigger a new election for an MP\"")
+	require.NoError(t, err)
+	require.Equal(t, "Make it easier to trigger a new election for an MP", gotTopic)
+
+}

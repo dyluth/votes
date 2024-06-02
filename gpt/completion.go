@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/dyluth/votes/publicwhip"
@@ -111,7 +112,7 @@ func OpenAIRequest(ctx context.Context, apikey string, messages []Message, funct
 		return OpenAPIResponse{}, err
 	}
 	log.WithField("body", string(b)).Info("completion response body")
-	fmt.Printf("completion parsed body Object: \n%+v\n\n", r)
+	log.Debugf("completion parsed body Object: \n%+v\n\n", r)
 	if r.Error != nil {
 		return r, fmt.Errorf(r.Error.Message)
 	}
@@ -210,14 +211,20 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 
 func parseResponseMessage(msg string) (topic string, err error) {
 
-	result := make(map[string]string)
+	result := make(map[string]string) // try as a simple map
 	err = json.Unmarshal([]byte(msg), &result)
 	if err != nil {
-
-		result := make(map[string][]string)
+		result := make(map[string][]string) // try as a map to list
 		err = json.Unmarshal([]byte(msg), &result)
 		if err != nil {
-			return "", err
+			// now try to see if it is a sentance with quotes inside
+			re := regexp.MustCompile(".*\\\"(.+)\\\".*")
+			matches := re.FindStringSubmatch(msg)
+			if len(matches) == 2 {
+				return matches[1], nil
+			}
+			return "", fmt.Errorf("could not understand GPT output")
+
 		}
 		prediction, ok := result["prediction"]
 		if ok {

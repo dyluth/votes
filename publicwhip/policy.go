@@ -62,14 +62,14 @@ func GetMPPolicyPositionCache(mpID, policyID string) (string, error) {
 		votes = make(map[string]string)
 		mpPolicyPositions[mpID] = votes
 	}
-
+	var err error
 	vote, ok := votes[policyID]
 	if !ok {
-		result, err := GetMPPolicyPosition(mpID, policyID)
+		vote, err = GetMPPolicyPosition(mpID, policyID)
 		if err != nil {
 			return "", err
 		}
-		votes[policyID] = result
+		votes[policyID] = vote
 		// save to disk
 		// TODO maybe move this to a periodic cache destage model - an async process
 		// though it will happen less and less as the program runs, so it's probably ok
@@ -80,7 +80,6 @@ func GetMPPolicyPositionCache(mpID, policyID string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-
 	}
 	return vote, nil
 }

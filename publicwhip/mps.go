@@ -5,21 +5,23 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/gocolly/colly"
+	"github.com/sirupsen/logrus"
 )
 
 var (
 	AllMPs   map[string]string // name : id
 	Policies map[string]string // name : id
+	log      *logrus.Logger
 )
 
-func SetupMPs() {
+func SetupMPs(logger *logrus.Logger) {
+	log = logger
 	loadMPs()
 
 	for _, v := range AllMPs {
@@ -28,10 +30,10 @@ func SetupMPs() {
 			Policies = loadAllPolicies(v)
 			err := saveAllPoliciesToCache()
 			if err != nil {
-				fmt.Printf("WARNING: failed to save cache of all Policies: %v\n", err)
+				log.Warnf("WARNING: failed to save cache of all Policies: %v\n", err)
 			}
 		}
-		fmt.Printf("loaded policies from cache\n")
+		log.Info("loaded policies from cache")
 		break
 	}
 }
@@ -61,14 +63,13 @@ func GetAllPolicies() []string {
 }
 
 func GetReducedPolicies() []string {
-	fmt.Println("WARNING: Using GetReducedPolicies - hardcoded list by Cam")
+	log.Warn("WARNING: Using GetReducedPolicies - hardcoded list by Cam")
 	return []string{
 		"Bankers' Bonus Tax",
 		"Higher Pay for Public Sector Workers",
 		"HS2 - In Favour",
 		"Incentivise Low Carbon Electricity Generation",
 		"Minimum Wage",
-		"Voting age - Reduce to 16",
 		"Right to strike",
 		"Public Ownership of Railways",
 		"Require voters to show photo ID before voting",
@@ -80,7 +81,28 @@ func GetReducedPolicies() []string {
 		"Prevent abuse of zero hours contracts",
 		"Tougher on illegal immigration",
 		"Homosexuality - Equal rights",
-		"None",
+		"Welfare benefits ought rise in line with prices",
+		"Energy Prices - More Affordable",
+		"In Favour of Mass Surveillance",
+		"Rail Fares - Lower",
+		"State control of bus services",
+		"Reduce the rate of Corporation Tax",
+		"Support current and former armed service members ",
+		"Do more to help refugees inclding children",
+		"Asylum System - More strict",
+		"Imported Goods Must Equal UK Standards",
+		"Human Rights and Equality",
+		"Higher Benefits for Ill and Disabled",
+		"More funds for social care",
+		"Reduce Spending on Welfare Benefits",
+		"Voting age - Reduce to 16",
+		"Increase the income tax - tax free allowance",
+		"Deployment of UK armed forces in Afghanistan",
+		"Trident replacement - In favour",
+		"Use of UK Military Forces Overseas",
+		"Reduce central funding for local government",
+		"Trade Unions - Restrict",
+		"Openness and Transparency - In Favour",
 	}
 }
 
@@ -98,10 +120,10 @@ func loadMPs() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("loaded MPs file.. first 10:")
+		log.Debug("loaded MPs file.. first 10:")
 		count := 0
 		for name, ID := range AllMPs {
-			fmt.Printf("MP: %v - %v\n", name, ID)
+			log.Debugf("MP: %v - %v\n", name, ID)
 			count++
 			if count > 10 {
 				break
@@ -110,11 +132,11 @@ func loadMPs() {
 		return
 	}
 	// else calculate the data and create the file
-	fmt.Println("couldnt find MPs file, scraping from www.publicwhip.org.uk")
+	log.Warn("couldnt find MPs file, scraping from www.publicwhip.org.uk")
 	downloadMPData()
 
 	// now write the MPs to a file
-	fmt.Println("now creating MPs file")
+	log.Info("now creating MPs file")
 	b := new(bytes.Buffer)
 	e := gob.NewEncoder(b)
 	// Encoding the map
@@ -169,7 +191,7 @@ func downloadMPData() {
 				if err == nil {
 					name := strings.ToLower(strings.TrimSpace(e.Text))
 					AllMPs[name] = id
-					fmt.Printf("%v,%v\n", name, id)
+					log.Debugf("%v,%v\n", name, id)
 				}
 			}
 		}

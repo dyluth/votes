@@ -49,6 +49,6 @@ func calculateTopic(tweet string) (string, error) {
 
 func getVotingHistory(topic, mpName string) (string, error) {
 	fmt.Println("Topic: " + topic)
-	publicwhip.SetupMPs()
+	publicwhip.SetupMPs(logrus.New())
 	return publicwhip.GetVoteHistory(mpName, topic)
 }
