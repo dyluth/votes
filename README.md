@@ -45,6 +45,8 @@ run the program with:
 `go run cmd/withgpt/main.go` will give you an idea of how it's supposed to work.
 `go run cmd/service/main.go` runs as a service that hosts an endpoint you can send requests to (see its readme)
 
+`go run cmd/service/main.go` - the classifier was originally designed to be its own microservice, but due to time constraints was redesigned as a monolith
+
 # different parts of the project
 ## data from PublicWhip
 this unfortunately has to be scraped from their website

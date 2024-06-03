@@ -65,6 +65,7 @@ func GetAllPolicies() []string {
 func GetReducedPolicies() []string {
 	log.Warn("WARNING: Using GetReducedPolicies - hardcoded list by Cam")
 	return []string{
+		"Human Rights and Equality",
 		"Bankers' Bonus Tax",
 		"Higher Pay for Public Sector Workers",
 		"HS2 - In Favour",
@@ -72,7 +73,6 @@ func GetReducedPolicies() []string {
 		"Minimum Wage",
 		"Right to strike",
 		"Public Ownership of Railways",
-		"Require voters to show photo ID before voting",
 		"Termination of pregnancy - against",
 		"More Emergency Service Workers",
 		"Right for EU Citizens in the UK to Stay",
@@ -87,21 +87,21 @@ func GetReducedPolicies() []string {
 		"Rail Fares - Lower",
 		"State control of bus services",
 		"Reduce the rate of Corporation Tax",
-		"Support current and former armed service members ",
 		"Do more to help refugees inclding children",
 		"Asylum System - More strict",
 		"Imported Goods Must Equal UK Standards",
-		"Human Rights and Equality",
 		"Higher Benefits for Ill and Disabled",
 		"More funds for social care",
 		"Reduce Spending on Welfare Benefits",
 		"Voting age - Reduce to 16",
 		"Increase the income tax - tax free allowance",
+		"Use of UK Military Forces Overseas",
 		"Deployment of UK armed forces in Afghanistan",
 		"Trident replacement - In favour",
-		"Use of UK Military Forces Overseas",
+		"Support current and former armed service members ",
 		"Reduce central funding for local government",
 		"Trade Unions - Restrict",
+		"Require voters to show photo ID before voting",
 		"Openness and Transparency - In Favour",
 	}
 }

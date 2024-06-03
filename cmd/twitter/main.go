@@ -62,7 +62,7 @@ func main() {
 				}
 				log.Info("history: " + history)
 
-				message := fmt.Sprintf("%v %v: %v", mpName, history, topic)
+				message := fmt.Sprintf("%v has previously %v: %v", mpName, history, topic)
 				panic("killed before posting\n" + message)
 				_, err = twitter.PostMessage(message)
 				if err != nil {
@@ -95,6 +95,12 @@ func isInterestingTweet(tweet string) (modifiedTweet string, interesting bool) {
 		return tweet, false
 	}
 	if strings.Contains("tweet", "saddened") { // we dont want to get involved in any message that involves sorrow
+		return tweet, false
+	}
+	if strings.Contains("tweet", "leaves behind") { // we dont want to get involved in any message that involves sorrow
+		return tweet, false
+	}
+	if strings.Contains("tweet", "sad") { // we dont want to get involved in any message that involves sorrow
 		return tweet, false
 	}
 	return tweet, true

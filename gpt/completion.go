@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/dyluth/votes/publicwhip"
@@ -223,6 +224,13 @@ func parseResponseMessage(msg string) (topic string, err error) {
 			if len(matches) == 2 {
 				return matches[1], nil
 			}
+			// as a final ditch effort
+			// go through these to see if any of these match in the string output!
+			for _, policy := range publicwhip.GetReducedPolicies() {
+				if strings.Contains(msg, policy) {
+					return policy, nil
+				}
+			}
 			return "", fmt.Errorf("could not understand GPT output")
 
 		}
@@ -234,8 +242,8 @@ func parseResponseMessage(msg string) (topic string, err error) {
 			}
 			return "", errors.New("prediction returned, but empty")
 		}
-
 	}
+
 	prediction, ok := result["prediction"]
 	if ok {
 		return prediction, nil
