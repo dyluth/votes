@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dyluth/votes/approval"
 	"github.com/dyluth/votes/gpt"
 	"github.com/dyluth/votes/publicwhip"
 	"github.com/dyluth/votes/twitter"
@@ -17,12 +17,14 @@ import (
 )
 
 const (
-	WaitTime = 20 * time.Minute
+	WaitTime = 5 * time.Minute
+)
+
+var (
+	log = logrus.New()
 )
 
 func main() {
-
-	log := logrus.New()
 
 	gptApiKey := os.Getenv("GPT_API_KEY")
 	if gptApiKey == "" {
@@ -34,6 +36,11 @@ func main() {
 		panic(err)
 	}
 	publicwhip.SetupMPs(log)
+
+	approver, err := approval.Setup(log, approved, "approvals")
+	if err != nil {
+		panic(err)
+	}
 
 	lastCheckTime, err := initLastCheckTime()
 	if err != nil {
@@ -54,7 +61,7 @@ func main() {
 
 	for {
 		for _, mp := range MPList {
-			DoMPRateLimit(log, lastCheckTime, gptApiKey, mp.MpTwitterID, mp.MpTwitterName)
+			DoMPRateLimit(log, lastCheckTime, gptApiKey, mp.MpTwitterID, mp.MpTwitterName, approver)
 			mp.LastCheckTime = time.Now()
 			setLastCheckTime()
 		}
@@ -63,14 +70,14 @@ func main() {
 	}
 }
 
-func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, mpName string) {
+func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, mpName string, approver approval.Approver) {
 	for {
-		err := DoMP(log, since, gptApiKey, MpTwitterID, mpName)
+		err := DoMP(log, since, gptApiKey, MpTwitterID, mpName, approver)
 		if err != nil {
 			if strings.Contains(err.Error(), "429") {
 				// we have been rate limited.. stop here for 20 minutes then retry
 				log.Info("Hit Twitter Rate limit - waiting 20 minutes, then continuing")
-				time.Sleep(20 * time.Minute)
+				time.Sleep(6 * time.Minute)
 			}
 		} else {
 			return
@@ -78,14 +85,13 @@ func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, 
 	}
 }
 
-func CheckAllMPs(log *logrus.Logger, since time.Time, gptApiKey string) {
+func CheckAllMPs(log *logrus.Logger, since time.Time, gptApiKey string, approver approval.Approver) {
 	for mpTwitterHandle, mpName := range twitter.TwitterIdToName {
-		DoMP(log, since, gptApiKey, mpTwitterHandle, mpName)
+		DoMP(log, since, gptApiKey, mpTwitterHandle, mpName, approver)
 	}
 }
 
-func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpName string) error {
-	reader := bufio.NewReader(os.Stdin)
+func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpName string, approver approval.Approver) error {
 	log.Info(fmt.Sprintf("\nlooking at MP: %v - %v", mpTwitterHandle, mpName))
 	tweets, err := twitter.GetMPMessages(mpTwitterHandle, since)
 	if err != nil {
@@ -124,23 +130,9 @@ func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpNam
 			return nil
 		}
 
-		message := fmt.Sprintf("%v has previously %v: %v", mpName, history, topic)
-
-		// wait for manual approval
-		log.Infof("MANUAL APPROVAL FOR TWEET: %v\n\nMESSAGE: %v\nAPPROVE? Y/N >", tweet.Tweet.Text, message)
-		text, _ = reader.ReadString('\n')
-		text = strings.ToLower(strings.TrimSpace(text))
-
-		if !strings.HasPrefix(text, "y") {
-			log.Info("not manually approved, skipping")
-			return nil
-		}
-
-		_, err = twitter.PostMessage(message)
-		if err != nil {
-			log.Warnf("failed to PostMessage(): %v", err.Error())
-			return nil
-		}
+		message := fmt.Sprintf("%v has historically %v: %v", mpName, history, topic)
+		// trigger manual approval
+		approver.NewApprovalRequest(text, message, tweet.Tweet.ID)
 
 	}
 	return nil
@@ -220,4 +212,16 @@ func setLastCheckTime() error {
 	encoder := json.NewEncoder(file)
 	err := encoder.Encode(t)
 	return err
+}
+
+// approved is the callback when a tweet has been approved
+func approved(tweetID, responseMsg string) {
+
+	log.WithField("ID", tweetID).WithField("msg", responseMsg).Info("WOOP WOOP! approved!")
+
+	id, err := twitter.PostReply(tweetID, responseMsg)
+	if err != nil {
+		log.Warnf("failed to PostMessage(): %v", err.Error())
+	}
+	log.Infof("Posted tweet %v", id)
 }

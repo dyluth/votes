@@ -78,7 +78,7 @@ func GetMPMessages(mpTwitterID string, since time.Time) (map[string]*twitter.Twe
 	}
 
 	mpTwitterID = strings.TrimPrefix(mpTwitterID, "@") // need to remove any @ from userids
-	query := fmt.Sprintf("from:%v -is:retweet", mpTwitterID)
+	query := fmt.Sprintf("from:%v -is:retweet -is:reply", mpTwitterID)
 
 	tweetResponse, err := client.TweetRecentSearch(context.Background(), query, opts)
 	if err != nil {

@@ -85,7 +85,7 @@ type FunctionCall struct {
 //	 }'
 func OpenAIRequest(ctx context.Context, apikey string, messages []Message, functions []Function, log *logrus.Logger) (OpenAPIResponse, error) {
 	data := Payload{
-		Model:     "gpt-4o",
+		Model:     "gpt-4", // gpt-4o is cheaper, but doesnt seem to  be as good at picking results
 		Messages:  messages,
 		Functions: functions,
 	}

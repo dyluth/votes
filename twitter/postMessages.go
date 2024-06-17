@@ -2,6 +2,7 @@ package twitter
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
 )
 
@@ -20,11 +21,15 @@ func PostReply(tweetID, message string) (messageID string, err error) {
 	if message != "" {
 		args = append(args, message)
 	}
+	fmt.Printf("running command: python3 %+v\n", args)
 
 	out, err := exec.Command("python3", args...).Output()
 	if err != nil {
 		return "", err
 	}
+
+	fmt.Printf("POST TWEET REPLY RESPONSE: %v\n\n", string(out))
+
 	// out should be json so parse it as such
 	resp := postTwitterResponse{}
 	err = json.Unmarshal(out, &resp)
