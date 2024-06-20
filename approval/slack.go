@@ -65,6 +65,7 @@ func (a *Approver) newReaction(r islack.Reaction) {
 
 func (a *Approver) NewApprovalRequest(tweet, response, tweetID string) error {
 	a.log.Info("====REQUESTING APPROVAL VIA SLACK====")
+	// tweet = fmt.Sprintf("<@D073DHL1PPE> - %v", tweet)  // could add in an @ notification to get our attention better
 	msg := fmt.Sprintf("%v±\n%v±\n±\n_[%v]_", tweetID, tweet, response)
 	_, err := a.bot.SendMessageToChannel(msg, a.channelID)
 	return err

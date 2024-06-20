@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/dyluth/votes/publicwhip"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
@@ -35,6 +36,8 @@ func TestGetTopicOfMessage(t *testing.T) {
 
 func Test_parseResponseMessage(t *testing.T) {
 
+	publicwhip.SetupMPs(logrus.New())
+
 	gotTopic, err := parseResponseMessage("The topic of the message is likely \"More Emergency Service Workers\".")
 	require.NoError(t, err)
 	require.Equal(t, "More Emergency Service Workers", gotTopic)
@@ -45,6 +48,10 @@ func Test_parseResponseMessage(t *testing.T) {
 
 	gotTopic, err = parseResponseMessage("The topic of the message is related to \"More funds for social care.\"")
 	require.NoError(t, err)
-	require.Equal(t, "More funds for social care.", gotTopic)
+	require.Equal(t, "More funds for social care", gotTopic)
+
+	gotTopic, err = parseResponseMessage("{\n  \"prediction\": \"Support current and former armed service members\"\n}")
+	require.NoError(t, err)
+	require.Equal(t, "Support current and former armed service members", gotTopic)
 
 }

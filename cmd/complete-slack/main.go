@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dyluth/votes/approval"
+	"github.com/dyluth/votes/archive"
 	"github.com/dyluth/votes/gpt"
 	"github.com/dyluth/votes/publicwhip"
 	"github.com/dyluth/votes/twitter"
@@ -17,11 +18,14 @@ import (
 )
 
 const (
-	WaitTime = 5 * time.Minute
+	WaitTime            = 5 * time.Minute
+	maxPreviousTweetAge = 6 * time.Hour
 )
 
 var (
-	log = logrus.New()
+	TweetStore     = archive.Archiver{Filename: "tweetstore.json"}
+	log            = logrus.New()
+	previousTweets = make(map[string]time.Time)
 )
 
 func main() {
@@ -61,11 +65,20 @@ func main() {
 
 	for {
 		for _, mp := range MPList {
+			log.WithField("MP", mp.MpTwitterName).WithField("since", time.Since(mp.LastCheckTime)).Info("checking MP")
 			DoMPRateLimit(log, lastCheckTime, gptApiKey, mp.MpTwitterID, mp.MpTwitterName, approver)
-			mp.LastCheckTime = time.Now()
+			mp.LastCheckTime = time.Now().Add(time.Second) // try to avoid seeing the same tweet twice
 			setLastCheckTime()
 		}
 		log.Infof("done all MPs.. now waiting for %v", WaitTime)
+		// remove all tweets older than a certin time maxPreviousTweetAge
+		oldest := time.Now().Add(-maxPreviousTweetAge)
+		for tweetID, time := range previousTweets {
+			if time.Before(oldest) {
+				delete(previousTweets, tweetID)
+				log.WithField("tweetID", tweetID).Debug("removing tweet from local record")
+			}
+		}
 		time.Sleep(WaitTime)
 	}
 }
@@ -75,9 +88,11 @@ func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, 
 		err := DoMP(log, since, gptApiKey, MpTwitterID, mpName, approver)
 		if err != nil {
 			if strings.Contains(err.Error(), "429") {
-				// we have been rate limited.. stop here for 20 minutes then retry
-				log.Info("Hit Twitter Rate limit - waiting 20 minutes, then continuing")
+				// we have been rate limited.. stop here for 6 minutes then retry
+				log.Info("Hit Twitter Rate limit - waiting 6 minutes, then continuing")
 				time.Sleep(6 * time.Minute)
+			} else {
+				log.WithError(err).Warn("weird error from DoMP")
 			}
 		} else {
 			return
@@ -100,7 +115,18 @@ func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpNam
 	}
 	log.Info(fmt.Sprintf("number of tweets: %v", len(tweets)))
 	for id, tweet := range tweets {
+		_, ok := previousTweets[id] // skip this tweet if we have seen it previously
+		if ok {
+			log.WithField("tweetID", id).Info("seen this tweet before.. skipping")
+			continue
+		}
+		previousTweets[id] = time.Now()
+
 		log.Debugf("tweet: %v - %v", id, tweet.Tweet.Text)
+		err := TweetStore.Store(tweet)
+		if err != nil {
+			log.WithError(err).Warn("trouble storing tweet")
+		}
 
 		// filter out rubbish tweets
 		text, interesting := isInterestingTweet(tweet.Tweet.Text)
@@ -126,7 +152,7 @@ func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpNam
 		}
 		log.Info("history: " + history)
 		if strings.Contains(history, "never voted") {
-			log.Info("MP has never voted on this, so skipping")
+			log.Info(mpName + " has never voted on this, so skipping")
 			return nil
 		}
 
@@ -148,6 +174,7 @@ func isInterestingTweet(tweet string) (modifiedTweet string, interesting bool) {
 	// strip out all URLs
 	re := regexp.MustCompile(`\s*http(s?)://\S+\s*`)
 	tweet = re.ReplaceAllString(tweet, "") // filter out tweets that are just a URL
+	tweet = strings.TrimSpace(tweet)
 	if len(tweet) == 0 {
 		return tweet, false
 	}

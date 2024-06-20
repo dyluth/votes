@@ -212,6 +212,14 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 
 func parseResponseMessage(msg string) (topic string, err error) {
 
+	// as a super dumb effort first
+	// go through these to see if any of these match in the string output!
+	for _, policy := range publicwhip.GetReducedPolicies() {
+		if strings.Contains(msg, policy) {
+			return policy, nil
+		}
+	}
+
 	result := make(map[string]string) // try as a simple map
 	err = json.Unmarshal([]byte(msg), &result)
 	if err != nil {
