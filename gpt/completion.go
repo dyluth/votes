@@ -85,7 +85,7 @@ type FunctionCall struct {
 //	 }'
 func OpenAIRequest(ctx context.Context, apikey string, messages []Message, functions []Function, log *logrus.Logger) (OpenAPIResponse, error) {
 	data := Payload{
-		Model:     "gpt-4", // gpt-4o is cheaper, but doesnt seem to  be as good at picking results
+		Model:     "gpt-4o", // gpt-4o is cheaper, but doesnt seem to  be as good at picking results
 		Messages:  messages,
 		Functions: functions,
 	}
@@ -196,7 +196,8 @@ func AskGPT(apiKey, tweet string, log *logrus.Logger) (string, error) {
 
 	resp, err := OpenAIRequest(ctx, apiKey, messages, []Function{function}, log)
 	if err != nil {
-		log.WithError(err).Fatal("request failed")
+		log.WithError(err).Warning("request failed")
+		log.WithField("messages from failing", messages)
 	}
 
 	result := ""
@@ -257,4 +258,76 @@ func parseResponseMessage(msg string) (topic string, err error) {
 		return prediction, nil
 	}
 	return "", errors.New("prediciton not found")
+}
+
+// GetTopicsOfMessage - more sophisticated -get all options
+func GetTopicsOfMessage(apiKey, tweet string, log *logrus.Logger) (topics []string, err error) {
+
+	resp, err := AskGPT(apiKey, tweet, log)
+	if err != nil {
+		return nil, err
+	}
+	log.Info(resp)
+
+	topics, err = parseResponseMessages(resp)
+	if err != nil {
+		return nil, err
+	}
+	return topics, nil
+}
+
+func parseResponseMessages(msg string) (topics []string, err error) {
+
+	// as a super dumb effort first
+	// go through these to see if any of these match in the string output!
+	options := []string{}
+	for _, policy := range publicwhip.GetReducedPolicies() {
+		if strings.Contains(msg, policy) {
+			options = append(options, policy)
+		}
+	}
+	if len(options) == 0 {
+		return options, errors.New("no topics found")
+	}
+	return options, nil
+	/*
+
+		result := make(map[string]string) // try as a simple map
+		err = json.Unmarshal([]byte(msg), &result)
+		if err != nil {
+			result := make(map[string][]string) // try as a map to list
+			err = json.Unmarshal([]byte(msg), &result)
+			if err != nil {
+				// now try to see if it is a sentance with quotes inside
+				re := regexp.MustCompile(".*\\\"(.+)\\\".*")
+				matches := re.FindStringSubmatch(msg)
+				if len(matches) == 2 {
+					return matches[1], nil
+				}
+				// as a final ditch effort
+				// go through these to see if any of these match in the string output!
+				for _, policy := range publicwhip.GetReducedPolicies() {
+					if strings.Contains(msg, policy) {
+						return policy, nil
+					}
+				}
+				return "", fmt.Errorf("could not understand GPT output")
+
+			}
+			prediction, ok := result["prediction"]
+			if ok {
+				if len(prediction) > 0 {
+
+					return prediction[0], nil
+				}
+				return "", errors.New("prediction returned, but empty")
+			}
+		}
+
+		prediction, ok := result["prediction"]
+		if ok {
+			return prediction, nil
+		}
+		return "", errors.New("prediciton not found")
+	*/
 }

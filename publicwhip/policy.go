@@ -117,7 +117,7 @@ func loadAllPolicies(mpID string) map[string]string {
 		suffix, found := strings.CutPrefix(e.Attr("href"), "/policy.php?id=")
 		if found {
 			// fmt.Printf("ID: %v, name: %v\n", suffix, e.Text)
-			policies[e.Text] = suffix
+			policies[strings.TrimSpace(e.Text)] = suffix
 		}
 	})
 

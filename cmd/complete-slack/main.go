@@ -19,11 +19,12 @@ import (
 
 const (
 	WaitTime            = 5 * time.Minute
-	maxPreviousTweetAge = 6 * time.Hour
+	maxPreviousTweetAge = 48 * time.Hour
 )
 
 var (
 	TweetStore     = archive.Archiver{Filename: "tweetstore.json"}
+	TweetResponses = archive.Archiver{Filename: "approvedResponses.json"}
 	log            = logrus.New()
 	previousTweets = make(map[string]time.Time)
 )
@@ -41,7 +42,7 @@ func main() {
 	}
 	publicwhip.SetupMPs(log)
 
-	approver, err := approval.Setup(log, approved, "approvals")
+	approver, err := approval.Setup(log, approved, "approvals", &TweetResponses, true)
 	if err != nil {
 		panic(err)
 	}
@@ -83,7 +84,7 @@ func main() {
 	}
 }
 
-func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, mpName string, approver approval.Approver) {
+func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, mpName string, approver *approval.Approver) {
 	for {
 		err := DoMP(log, since, gptApiKey, MpTwitterID, mpName, approver)
 		if err != nil {
@@ -100,13 +101,13 @@ func DoMPRateLimit(log *logrus.Logger, since time.Time, gptApiKey, MpTwitterID, 
 	}
 }
 
-func CheckAllMPs(log *logrus.Logger, since time.Time, gptApiKey string, approver approval.Approver) {
+func CheckAllMPs(log *logrus.Logger, since time.Time, gptApiKey string, approver *approval.Approver) {
 	for mpTwitterHandle, mpName := range twitter.TwitterIdToName {
 		DoMP(log, since, gptApiKey, mpTwitterHandle, mpName, approver)
 	}
 }
 
-func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpName string, approver approval.Approver) error {
+func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpName string, approver *approval.Approver) error {
 	log.Info(fmt.Sprintf("\nlooking at MP: %v - %v", mpTwitterHandle, mpName))
 	tweets, err := twitter.GetMPMessages(mpTwitterHandle, since)
 	if err != nil {
@@ -114,6 +115,8 @@ func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpNam
 		return err
 	}
 	log.Info(fmt.Sprintf("number of tweets: %v", len(tweets)))
+
+TweetsLoop:
 	for id, tweet := range tweets {
 		_, ok := previousTweets[id] // skip this tweet if we have seen it previously
 		if ok {
@@ -135,30 +138,44 @@ func DoMP(log *logrus.Logger, since time.Time, gptApiKey, mpTwitterHandle, mpNam
 			return nil
 		}
 
-		topic, err := gpt.GetTopicOfMessage(gptApiKey, text, log)
+		topics, err := gpt.GetTopicsOfMessage(gptApiKey, text, log)
 		if err != nil {
 			log.Warnf("failed to GetTopicOfMessage: %v", err.Error())
 			return nil
 		}
-		log.Info("topic: " + topic)
-		if topic == "None" {
+		log.Infof("found %v topics", len(topics))
+		fmt.Printf("\n%v", strings.Join(topics, "\n"))
+		//log.Info("topic: " + topic)
+		if len(topics) == 0 || len(topics) == 1 && topics[0] == "None" {
 			log.Info("None topic.. skipping ")
 			return nil
 		}
-		history, err := publicwhip.GetVoteHistory(mpName, topic)
-		if err != nil {
-			log.Warnf("failed to GetVoteHistory(%v, %v): %v", mpName, topic, err.Error())
-			return nil
+
+		// potentially parallelise this for speed using:
+		//wg := sync.WaitGroup{}
+		//wg.Add(len(topics))
+		options := []string{}
+		for i := range topics {
+			history, err := publicwhip.GetVoteHistory(mpName, topics[i])
+			if err != nil {
+				log.Warnf("failed to GetVoteHistory(%v, %v): %v", mpName, topics[i], err.Error())
+				continue
+			}
+			log.Info("history: " + history)
+			if strings.Contains(history, "never voted") {
+				log.Info(mpName + " has never voted on this, so skipping")
+				continue
+			}
+			message := fmt.Sprintf("%v has historically %v: %v", mpName, history, topics[i])
+			options = append(options, message)
 		}
-		log.Info("history: " + history)
-		if strings.Contains(history, "never voted") {
-			log.Info(mpName + " has never voted on this, so skipping")
-			return nil
+		if len(options) == 0 {
+			log.Info(mpName + " has no valid responses, so moving to next tweet")
+			continue TweetsLoop
 		}
 
-		message := fmt.Sprintf("%v has historically %v: %v", mpName, history, topic)
 		// trigger manual approval
-		approver.NewApprovalRequest(text, message, tweet.Tweet.ID)
+		approver.NewApprovalRequest(text, options, tweet.Tweet.ID)
 
 	}
 	return nil
